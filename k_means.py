@@ -1,3 +1,8 @@
+"""K-means clustering color extractor
+
+This script extracts the main colors from a given image by means of k-means clustering.
+"""
+
 import numpy as np
 from PIL import Image
 import random
@@ -9,11 +14,11 @@ import colormath.color_objects as co
 ######################### Settings #############################
 
 image_path = "/home/pit/Pictures/74381609_p0.jpg"
-n_clusters = 10 
-n_iterations = 20
-n_plot_points = 1500
-verbose = False
-img_size = (100,50)    # Image will be resized to this (while keeping original aspect ratio). Set None to keep original size. 
+n_clusters = 10         # Number of clusters
+n_iterations = 20       # Number of iterations
+n_plot_points = 1500    # Number of points in the final plot
+verbose = False         # Outputs the current centers in each iteration
+img_size = (100,50)     # Image will be resized to this (while keeping original aspect ratio). Set None to keep original size. 
 
 ######################### Function Definitions #######################
 
@@ -41,6 +46,7 @@ def get_distances(color, centers):
     """
     Calculates the distance between the given color and each of the current cluster centers
     """
+    # TODO: Optimize this broadcasting instead of looping
     return [((color[0]-c[0])**2+(color[1]-c[1])**2+(color[2]-c[2])**2) for c in centers]
 
 
@@ -50,6 +56,7 @@ def assign_to_clusters(color_array, centers):
     """
     clust = [[] for i in range(n_clusters)]
     clust_mult = [[] for i in range(n_clusters)]
+    # TODO: Make this more efficient somehow
     for i, color in enumerate(color_array):
         nearest_id = np.argmin(get_distances(color, centers))
         clust[nearest_id].append(color)
@@ -120,9 +127,10 @@ fig = plt.figure()
 ax = fig.add_subplot(projection='3d')
 
 step = max(len(color_arr)//n_plot_points,1)
+# Draw dots for the image's colors with positions and colors both determined by their RGB values.
 ax.scatter3D(color_arr[::step,0], color_arr[::step,1], color_arr[::step,2], c = color_arr[::step]/255, s = 12500/n_plot_points)
 
-
+# Draw the cluster centers as colored dots surrounded by a white and black ring to ensure contrast with the image color dots.
 ax.scatter3D(centers[:,0], centers[:,1], centers[:,2], c="black", s=225, depthshade=False)
 ax.scatter3D(centers[:,0], centers[:,1], centers[:,2], c="white", s=125, depthshade=False)
 ax.scatter3D(centers[:,0], centers[:,1], centers[:,2], c=centers/255, s=50, depthshade=False)
