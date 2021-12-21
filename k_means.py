@@ -13,7 +13,7 @@ import colormath.color_objects as co
 
 ######################### Settings #############################
 
-image_path = "/home/pit/Pictures/74381609_p0.jpg"
+image_path = "/home/pit/Pictures/wave.png"
 n_clusters = 10         # Number of clusters
 n_iterations = 20       # Number of iterations
 n_plot_points = 1500    # Number of points in the final plot
