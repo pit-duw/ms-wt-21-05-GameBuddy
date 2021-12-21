@@ -71,6 +71,7 @@ rbrect = rb.get_rect()
 ########### Functions ###############
 
 def get_square(position):
+    """Get the chess board square from the mouse coordinates"""
     x = position[0]
     y = position[1]
     if x <50 or x>850 or y >850 or y <50:
@@ -116,7 +117,7 @@ def get_input():
 
     if square_down == square_up:
         input_complete = False
-        print("Invalid Input!!!")
+        print("Invalid Input!")
         return get_input()
 
     inp = (square_down+square_up).lower()
@@ -144,9 +145,10 @@ def make_player_move(board):
         return 0
     else: 
         print("Illegal Move!")
-        make_player_move(board)
+        return make_player_move(board)
 
 def draw_pieces(board_string):
+    """Take the current board state and draw all pieces accondingly"""
     board_list = board_string.split("\n")
     board_list = [bl.split() for bl in board_list]
     for i, bl in enumerate(board_list):
@@ -179,19 +181,16 @@ def draw_pieces(board_string):
                 screen.blit(nw, [50+20+100*j, 50+20+100*i])
 
 def draw_board():
+    """Draw the chess board"""
     surf_w = pygame.Surface((100,100))
     surf_w.fill((225,225,225))
     surf_b = pygame.Surface((800,800))
     surf_b.fill((40,40,40))
-    surf_b_rect = surf_b.get_rect()
-    surf_b_rect = surf_b_rect.move([50,50])
-    screen.blit(surf_b, surf_b_rect)
+    screen.blit(surf_b, [50,50])
     for i in range(8):
         for j in range(8):
             if (i+j) % 2 == 0:
-                surf_w_rect = surf_w.get_rect()
-                surf_w_rect = surf_w_rect.move([i*100+50,j*100+50])
-                screen.blit(surf_w, surf_w_rect)
+                screen.blit(surf_w, [i*100+50,j*100+50])
         textsurface = myfont.render(col_names[i], False, (255, 255, 255))
         screen.blit(textsurface, (50+38 + i * 100, 10))
         screen.blit(textsurface, (50+38 + i * 100, 850+10))
@@ -201,22 +200,19 @@ def draw_board():
         
 
 
-
-
 ############# Setup ###############
 
 board = chess.Board()
-
 draw_board()
 draw_pieces(board.__str__())
 pygame.display.flip()
 
+
+
 ############# Game loop #############
 
 while not (board.is_game_over() or status):
-    
     status = make_move(board)
-    print("asd")
     draw_board()
     draw_pieces(board.__str__())
     pygame.display.flip()
