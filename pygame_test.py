@@ -7,11 +7,12 @@ GameBuddy - Chess AI
 import chess
 import random 
 import pygame
+import chess.engine
 
 ############ Settings ############
 
-player_white = "human"
-player_black = "random"
+player_white = "good_moves"
+player_black = "good_moves"
 
 
 
@@ -24,6 +25,8 @@ special_moves = {"forfeit":["gg", "ggwp"]}  # dictionary of special moves: key =
 count = 0   # counter for number of turns played
 status = 0  # possible game states: 0 = game is ongoing, 1 = player forfeited the match, 2 = error occured
 
+n_best_moves = 4
+search_depth = 4
 
 
 ########### Setting up pygame #############
@@ -35,6 +38,7 @@ screen = pygame.display.set_mode(size)
 screen.fill(black)
 pygame.font.init()
 myfont = pygame.font.SysFont('Arial', 34)
+engine = chess.engine.SimpleEngine.popen_uci("stockfish_14.1_linux_x64/stockfish_14.1_linux_x64")
 
 
 
@@ -91,6 +95,8 @@ def make_move(board):
         return make_player_move(board)
     elif player == "random":
         return make_random_move(board)
+    elif player == "good_moves":
+        return make_good_move(board, 0, n_best_moves, board.turn)
     else:
         print("Invalid player.")
         return 2
@@ -100,6 +106,43 @@ def make_random_move(board):
     randoMove = str(random.choice
                     ([move for move in board.legal_moves]))
     board.push_san(randoMove)
+    return 0
+    
+
+def get_board_rating(board, color):
+    info = engine.analyse(board, chess.engine.Limit(depth=0))
+    if color == chess.WHITE:
+        return info["score"].white()
+    else:
+        return info["score"].black()
+
+def make_good_move(board, current_depth, n_best_movesLocal, color):
+    move_ratings = {}
+    
+    for move in board.legal_moves:
+        board.push_san(move.__str__())
+        move_ratings[move.__str__()] = get_board_rating(board, color)
+        board.pop()
+
+    max_moves = min(n_best_movesLocal, len(move_ratings))
+
+    potential_moves = sorted(move_ratings.items(), key=lambda x:x[1], reverse=bool((current_depth)%2))[:max_moves]
+    
+    if current_depth+1 < search_depth:
+        for move in potential_moves:
+            board.push_san(move[0])
+            move_ratings[move[0]] = make_good_move(board, current_depth+1, max(1, n_best_movesLocal-1), color)
+            board.pop()
+    #print(current_depth, move_ratings)
+    best_move = sorted(move_ratings.items(), key=lambda x:x[1], reverse=bool((current_depth)%2))[-1]
+    if current_depth == 0:
+        print(best_move)
+        result = engine.play(board, chess.engine.Limit(time=0.1))
+        print (result)
+        board.push_san(best_move[0])
+        return 0
+    return best_move[1]
+    
     
 def get_input():
     """Get the player input and handle invalid UCI codes."""
@@ -142,6 +185,9 @@ def make_player_move(board):
         return 1
     if chess.Move.from_uci(player_move) in board.legal_moves:
         board.push_san(player_move)
+        return 0
+    if chess.Move.from_uci(player_move+"q") in board.legal_moves:
+        board.push_san(player_move+"q")
         return 0
     else: 
         print("Illegal Move!")
