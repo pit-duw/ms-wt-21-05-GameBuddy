@@ -11,7 +11,7 @@ import chess.engine
 
 ############ Settings ############
 
-player_white = "good_moves"
+player_white = "human"
 player_black = "good_moves"
 
 
@@ -20,14 +20,14 @@ player_black = "good_moves"
 
 col_names = ["a","b","c","d","e","f","g","h"]
 row_names = ["1","2","3","4","5","6","7","8"]
+end_result_str = ['#-0', '#+0']
 promo_names = ["q","r","n","b"] # possible pieces for promotion
 special_moves = {"forfeit":["gg", "ggwp"]}  # dictionary of special moves: key = outcome, value = list of possible inputs
 count = 0   # counter for number of turns played
 status = 0  # possible game states: 0 = game is ongoing, 1 = player forfeited the match, 2 = error occured
 
-n_best_moves = 4
-search_depth = 4
-
+n_best_moves = 8
+search_depth = 6
 
 ########### Setting up pygame #############
 
@@ -96,7 +96,9 @@ def make_move(board):
     elif player == "random":
         return make_random_move(board)
     elif player == "good_moves":
-        return make_good_move(board, 0, n_best_moves, board.turn)
+        return make_good_move(board, 0, n_best_moves)
+    elif player == "stockfish":
+        return make_stockfish_move(board, 2)
     else:
         print("Invalid player.")
         return 2
@@ -109,40 +111,98 @@ def make_random_move(board):
     return 0
     
 
-def get_board_rating(board, color):
+def get_board_rating(board):
     info = engine.analyse(board, chess.engine.Limit(depth=0))
-    if color == chess.WHITE:
-        return info["score"].white()
-    else:
-        return info["score"].black()
+    return info["score"].white()
 
-def make_good_move(board, current_depth, n_best_movesLocal, color):
-    move_ratings = {}
+def still_potential(cp_best, cp_test, color):
+    if (cp_best.__str__()[0] == '#' and cp_test != cp_best):
+        return False
+    elif (cp_test.__str__()[0] == '#'):
+        return True
     
+    res = False
+    cp_best = int(cp_best.__str__())
+    cp_test = int(cp_test.__str__())
+    mult = +1
+    if not color: mult = -1
+    dist = (abs(cp_best) * 0.1 + 10)
+    if dist > 80: dist = 80
+    if abs(cp_best-cp_test) < dist:
+        res = True
+    else:
+        res = False
+    
+    #print(res, cp_best, cp_test, cp_best-cp_test, color)
+    return res
+
+def get_best_moves(board):
+    move_ratings = {}
+    num_legal_moves = 0
     for move in board.legal_moves:
         board.push_san(move.__str__())
-        move_ratings[move.__str__()] = get_board_rating(board, color)
+        num_legal_moves += 1
+        move_ratings[move.__str__()] = get_board_rating(board)
         board.pop()
 
-    max_moves = min(n_best_movesLocal, len(move_ratings))
+    pot = dict(sorted(move_ratings.items(), key=lambda x:x[1], reverse=board.turn))
+    best_move_rating = sorted(move_ratings.items(), key=lambda x:x[1], reverse=board.turn)[0][1]
+    new_num_moves = num_legal_moves
+    for move in pot.copy():
+        if pot[move] == best_move_rating:
+            pass
+        elif not still_potential(best_move_rating, pot[move], board.turn): 
+            del pot[move]
+            new_num_moves -= 1
+    #print ('#moves: ', num_legal_moves, new_num_moves, ' Difference: ', num_legal_moves-new_num_moves)
+    #if num_legal_moves-new_num_moves == 0: print ('0 diffrence: ', dict(sorted(move_ratings.items(), key=lambda x:x[1], reverse=board.turn)))
+    if new_num_moves > n_best_moves:
+        return dict(sorted(move_ratings.items(), key=lambda x:x[1], reverse=board.turn)[:n_best_moves])
+    return pot
 
-    potential_moves = sorted(move_ratings.items(), key=lambda x:x[1], reverse=bool((current_depth)%2))[:max_moves]
+
+def get_n_best_moves(board, n):
+    move_ratings = {}
+    num_legal_moves = 0
+    for move in board.legal_moves:
+        board.push_san(move.__str__())
+        num_legal_moves += 1
+        move_ratings[move.__str__()] = get_board_rating(board)
+        board.pop()
+    #print ('Items: ', num_legal_moves)
+    if n < num_legal_moves:
+        return dict(sorted(move_ratings.items(), key=lambda x:x[1], reverse=board.turn)[:n])
+    else:
+        return dict(sorted(move_ratings.items(), key=lambda x:x[1], reverse=board.turn))
+
+def make_stockfish_move(board, depth_stock):
+    result = engine.play(board, chess.engine.Limit(depth=depth_stock))
+    print ("Stockfish: ", result.move )
+    board.push_san(result.move.__str__())
+    return 0 
+
+def make_good_move(board, current_depth, n):
     
+    #potential_moves = get_n_best_moves(board, n)
+    potential_moves = get_best_moves(board)
+    move_ratings = potential_moves
+
     if current_depth+1 < search_depth:
         for move in potential_moves:
-            board.push_san(move[0])
-            move_ratings[move[0]] = make_good_move(board, current_depth+1, max(1, n_best_movesLocal-1), color)
-            board.pop()
-    #print(current_depth, move_ratings)
-    best_move = sorted(move_ratings.items(), key=lambda x:x[1], reverse=bool((current_depth)%2))[-1]
+            if not (move_ratings[move].__str__() in end_result_str): 
+                board.push_san(move)
+                move_ratings[move] = make_good_move(board, current_depth+1, n)
+                board.pop()
+    
+    best_move = sorted(move_ratings.items(), key=lambda x:x[1], reverse=board.turn)[0]
+
     if current_depth == 0:
-        print(best_move)
-        result = engine.play(board, chess.engine.Limit(time=0.1))
-        print (result)
+        result = engine.play(board, chess.engine.Limit(depth=10))
+        print ('Move: ', best_move, result, potential_moves)
         board.push_san(best_move[0])
         return 0
     return best_move[1]
-    
+
     
 def get_input():
     """Get the player input and handle invalid UCI codes."""
@@ -258,6 +318,7 @@ pygame.display.flip()
 ############# Game loop #############
 
 while not (board.is_game_over() or status):
+    #status = testing(board)
     status = make_move(board)
     draw_board()
     draw_pieces(board.__str__())
