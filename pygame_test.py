@@ -13,11 +13,11 @@ import chess.engine
 
 ############ Settings ############
 
-player_white = "human"
+player_white = "good_moves"
 player_black = "good_moves"
-n_best_moves = 4
-search_depth = 4
-
+n_best_moves = 6
+search_depth = 6
+stock_depth = 4
 
 ############ Setting up variables #############
 
@@ -42,20 +42,20 @@ engine = chess.engine.SimpleEngine.popen_uci("stockfish_14.1_linux_x64/stockfish
 
 
 ########### Loading piece images #############
+pieces = {}
+pieces["P"] = pygame.image.load("pieces/Chess_plt60.png")
+pieces["K"] = pygame.image.load("pieces/Chess_klt60.png")
+pieces["Q"] = pygame.image.load("pieces/Chess_qlt60.png")
+pieces["N"] = pygame.image.load("pieces/Chess_nlt60.png")
+pieces["B"] = pygame.image.load("pieces/Chess_blt60.png")
+pieces["R"] = pygame.image.load("pieces/Chess_rlt60.png")
 
-pw = pygame.image.load("pieces/Chess_plt60.png")
-kw = pygame.image.load("pieces/Chess_klt60.png")
-qw = pygame.image.load("pieces/Chess_qlt60.png")
-nw = pygame.image.load("pieces/Chess_nlt60.png")
-bw = pygame.image.load("pieces/Chess_blt60.png")
-rw = pygame.image.load("pieces/Chess_rlt60.png")
-
-pb = pygame.image.load("pieces/Chess_pdt60.png")
-kb = pygame.image.load("pieces/Chess_kdt60.png")
-qb = pygame.image.load("pieces/Chess_qdt60.png")
-nb = pygame.image.load("pieces/Chess_ndt60.png")
-bb = pygame.image.load("pieces/Chess_bdt60.png")
-rb = pygame.image.load("pieces/Chess_rdt60.png")
+pieces["p"] = pygame.image.load("pieces/Chess_pdt60.png")
+pieces["k"] = pygame.image.load("pieces/Chess_kdt60.png")
+pieces["q"] = pygame.image.load("pieces/Chess_qdt60.png")
+pieces["n"] = pygame.image.load("pieces/Chess_ndt60.png")
+pieces["b"] = pygame.image.load("pieces/Chess_bdt60.png")
+pieces["r"] = pygame.image.load("pieces/Chess_rdt60.png")
 
 
 ########### Functions ###############
@@ -84,7 +84,7 @@ def make_move(board):
     elif player == "good_moves":
         return make_good_move(board, 0)
     elif player == "stockfish":
-        return make_stockfish_move(board, 2)
+        return make_stockfish_move(board, stock_depth)
     else:
         print("Invalid player.")
         return 2
@@ -106,6 +106,8 @@ def get_board_rating(board):
 
 def has_potential(cp_best, cp_test):
     """Check whether a given move still has potential compared to the best move in the current search."""
+    if cp_test is None: # Oppenent won't choose moves that cause them to be Mated soon.
+        return False
     max_dist = min(abs(cp_best) * 0.1 + 10, 80)
     return abs(cp_best-cp_test) < max_dist
 
@@ -167,28 +169,40 @@ def make_good_move(board, current_depth):
 def get_input():
     """Get the player input and handle invalid UCI codes."""
     input_complete = False
+    square_start = ""
+    square_end = ""
     while not input_complete:
         for event in pygame.event.get(): 
             if event.type == pygame.MOUSEBUTTONDOWN:
-                square_down = get_square(pygame.mouse.get_pos())
-                #highligt_possible_moves(square_down)
+                square_start = get_square(pygame.mouse.get_pos())
+                #highligt_possible_moves(square_start)
+
+            # Drag and Drop movement
             if event.type == pygame.MOUSEBUTTONUP:
-                square_up = get_square(pygame.mouse.get_pos())
-                input_complete = True
+                square_end = get_square(pygame.mouse.get_pos())
+                
+                # Switch to 2-click movement, if mouse button is released on same tile as it was pressed
+                if square_start == square_end:
+                    while not input_complete:
+                        for event in pygame.event.get(): 
+                            if event.type == pygame.MOUSEBUTTONUP:
+                                square_end = get_square(pygame.mouse.get_pos())
+                                input_complete = True
+                else:
+                    input_complete = True
 
-    if square_down == square_up:
-        input_complete = False
-        print("Invalid Input!")
-        return get_input()
+                if square_start == square_end:
+                    print("Invalid Input!")
+                    return get_input()
 
-    inp = (square_down+square_up).lower()
+    # Generate the move string from the input and check whether it is valid
+    inp = (square_start+square_end)#.lower()
     print(inp)
-    
-    # Check whether inp is a valid input string 
     if len(inp) == 4:
         if inp[0] in col_names and inp[2] in col_names and inp[1] in row_names and inp[3] in row_names:
             return inp
 
+    # Repeat if the input was invalid
     print("Invalid Input!")
     return get_input()
     
@@ -201,7 +215,8 @@ def make_player_move(board):
     if chess.Move.from_uci(player_move) in board.legal_moves:
         board.push_san(player_move)
         return 0
-    if chess.Move.from_uci(player_move+"q") in board.legal_moves:
+    # Handle promotion, currently queen is automatically chosen
+    elif chess.Move.from_uci(player_move+"q") in board.legal_moves:
         board.push_san(player_move+"q")
         return 0
     else: 
@@ -215,32 +230,8 @@ def draw_pieces(board_string):
     board_list = [bl.split() for bl in board_list]
     for i, bl in enumerate(board_list):
         for j, piece in enumerate(bl):
-            if piece==".":
-                pass
-            elif piece=="p":
-                screen.blit(pb, [50+20+100*j, 50+20+100*i])
-            elif piece=="r":
-                screen.blit(rb, [50+20+100*j, 50+20+100*i])
-            elif piece=="q":
-                screen.blit(qb, [50+20+100*j, 50+20+100*i])
-            elif piece=="b":
-                screen.blit(bb, [50+20+100*j, 50+20+100*i])
-            elif piece=="k":
-                screen.blit(kb, [50+20+100*j, 50+20+100*i])
-            elif piece=="n":
-                screen.blit(nb, [50+20+100*j, 50+20+100*i])
-            elif piece=="P":
-                screen.blit(pw, [50+20+100*j, 50+20+100*i])
-            elif piece=="R":
-                screen.blit(rw, [50+20+100*j, 50+20+100*i])
-            elif piece=="Q":
-                screen.blit(qw, [50+20+100*j, 50+20+100*i])
-            elif piece=="B":
-                screen.blit(bw, [50+20+100*j, 50+20+100*i])
-            elif piece=="K":
-                screen.blit(kw, [50+20+100*j, 50+20+100*i])
-            elif piece=="N":
-                screen.blit(nw, [50+20+100*j, 50+20+100*i])
+            if not piece==".":
+                screen.blit(pieces[piece], [50+20+100*j, 50+20+100*i])
 
 
 def draw_board():
