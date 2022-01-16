@@ -13,10 +13,10 @@ import chess.engine
 
 ############ Settings ############
 
-player_white = "good_moves"
-player_black = "good_moves"
-n_best_moves = 6
-search_depth = 6
+player_white = "human"
+player_black = "human"
+n_best_moves = 3
+search_depth = 3
 stock_depth = 4
 
 ############ Setting up variables #############
@@ -42,7 +42,8 @@ engine = chess.engine.SimpleEngine.popen_uci("stockfish_14.1_linux_x64/stockfish
 
 
 ########### Loading piece images #############
-pieces = {}
+
+pieces = {} # Dictionary: piece name -> image
 pieces["P"] = pygame.image.load("pieces/Chess_plt60.png")
 pieces["K"] = pygame.image.load("pieces/Chess_klt60.png")
 pieces["Q"] = pygame.image.load("pieces/Chess_qlt60.png")
@@ -92,8 +93,7 @@ def make_move(board):
 
 def make_random_move(board):
     """Most stupid AI possible: picks a random move from all legal moves"""
-    randoMove = str(random.choice
-                    ([move for move in board.legal_moves]))
+    randoMove = str(random.choice([move for move in board.legal_moves]))
     board.push_san(randoMove)
     return 0
     
@@ -166,7 +166,7 @@ def make_good_move(board, current_depth):
     return best_move[1]
 
     
-def get_input():
+def get_input(board):
     """Get the player input and handle invalid UCI codes."""
     input_complete = False
     square_start = ""
@@ -175,7 +175,7 @@ def get_input():
         for event in pygame.event.get(): 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 square_start = get_square(pygame.mouse.get_pos())
-                #highligt_possible_moves(square_start)
+                highlight_moves(board, square_start)
 
             # Drag and Drop movement
             if event.type == pygame.MOUSEBUTTONUP:
@@ -193,7 +193,8 @@ def get_input():
 
                 if square_start == square_end:
                     print("Invalid Input!")
-                    return get_input()
+                    draw_board(board)
+                    return get_input(board)
 
     # Generate the move string from the input and check whether it is valid
     inp = (square_start+square_end)#.lower()
@@ -204,12 +205,13 @@ def get_input():
 
     # Repeat if the input was invalid
     print("Invalid Input!")
-    return get_input()
+    draw_board(board)
+    return get_input(board)
     
     
 def make_player_move(board):
-    """Perform a player turn"""
-    player_move = get_input()
+    """Get the players move input and check whether it is a valid move."""
+    player_move = get_input(board)
     if player_move in special_moves["forfeit"]:
         return 1
     if chess.Move.from_uci(player_move) in board.legal_moves:
@@ -234,8 +236,8 @@ def draw_pieces(board_string):
                 screen.blit(pieces[piece], [50+20+100*j, 50+20+100*i])
 
 
-def draw_board():
-    """Draw the chess board"""
+def draw_board(board):
+    """Draw the chess board + Pieces"""
     surf_w = pygame.Surface((100,100))
     surf_w.fill((225,225,225))
     surf_b = pygame.Surface((800,800))
@@ -251,23 +253,52 @@ def draw_board():
         textsurface = myfont.render(row_names[-i-1], False, (255, 255, 255))
         screen.blit(textsurface, (15, 50+33 + i * 100))
         screen.blit(textsurface, (850+15, 50+33 + i * 100))
-        
+
+    draw_pieces(board.__str__())
+    # Update the screen
+    pygame.display.flip()
+
+
+def highlight_moves(board, square_start):
+    """Draw green highlights for all legal moves starting from the given square."""
+    for move in board.legal_moves:
+        if square_start == move.__str__()[:2]:
+            target = move.__str__()[2:]
+            # Get the square's position on the screen 
+            pos = [(ord(target[0])-96)*100-50, (9-int(target[1]))*100-50]   # ord(char) = ascii code of char 
+            # Create a surface with alpha channel for colors
+            alpha_surf = pygame.Surface((100,100), pygame.SRCALPHA)
+            if contains_piece(board, target):
+                # Fill the target sqaure green
+                alpha_surf.fill((25,150,25,150))
+                # Create a circle shape and remove it from the target square's green highlight
+                circle_surf = pygame.Surface((100,100), pygame.SRCALPHA)
+                pygame.draw.circle(circle_surf, (0,0,0,255), (50, 50), 54)
+                alpha_surf.blit(circle_surf, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+            else:
+                # Draw a green circle on free squares
+                pygame.draw.circle(alpha_surf, (25,150,25,150), (50,50), 20)
+            screen.blit(alpha_surf, pos)
+    pygame.display.flip()
+
+
+def contains_piece(board, square):
+    board_list = board.__str__().split("\n")
+    board_list = [bl.split() for bl in board_list]
+    return not board_list[(8-int(square[1]))][(ord(square[0])-97)] == "."
+
 
 ############# Setup ###############
 
 board = chess.Board()
-draw_board()
-draw_pieces(board.__str__())
-pygame.display.flip()
+draw_board(board)
 
 
 ############# Game loop #############
 
 while not (board.is_game_over() or status):
     status = make_move(board)
-    draw_board()
-    draw_pieces(board.__str__())
-    pygame.display.flip()
+    draw_board(board)
 
     
 ############### Handle game outcome #############
