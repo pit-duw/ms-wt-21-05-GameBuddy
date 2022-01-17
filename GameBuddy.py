@@ -13,10 +13,10 @@ from sys import exit
 
 ############ Settings ############
 
-player_white = "human"
-player_black = "human"
-n_best_moves = 3
-search_depth = 3
+player_white = "good_moves"
+player_black = "good_moves"
+n_best_moves = 1
+search_depth = 1
 stock_depth = 4
 
 ############ Setting up variables #############
@@ -173,6 +173,11 @@ def get_input(board):
     square_end = ""
     while not input_complete:
         for event in pygame.event.get(): 
+            # Check for quitting
+            if event.type == pygame.QUIT:
+                engine.quit()
+                pygame.quit()
+                exit()
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 square_start = get_square(pygame.mouse.get_pos())
@@ -323,3 +328,10 @@ elif board.is_checkmate() or status == 1:
         print("BLACK won!")
 elif status == 2:
     print("An error occured. Game stopped.")
+
+while True:
+    for event in pygame.event.get(): 
+        if event.type == pygame.QUIT:
+            engine.quit()
+            pygame.quit()
+            exit()
