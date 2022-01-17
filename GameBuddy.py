@@ -9,7 +9,7 @@ import chess
 import random 
 import pygame
 import chess.engine
-
+from sys import exit
 
 ############ Settings ############
 
@@ -173,6 +173,7 @@ def get_input(board):
     square_end = ""
     while not input_complete:
         for event in pygame.event.get(): 
+
             if event.type == pygame.MOUSEBUTTONDOWN:
                 square_start = get_square(pygame.mouse.get_pos())
                 highlight_moves(board, square_start)
@@ -192,7 +193,7 @@ def get_input(board):
                     input_complete = True
 
                 if square_start == square_end:
-                    print("Invalid Input!")
+                    # print("Invalid Input!")
                     draw_board(board)
                     return get_input(board)
 
@@ -201,6 +202,7 @@ def get_input(board):
     print(inp)
     if len(inp) == 4:
         if inp[0] in col_names and inp[2] in col_names and inp[1] in row_names and inp[3] in row_names:
+            draw_board(board)
             return inp
 
     # Repeat if the input was invalid
@@ -279,6 +281,15 @@ def highlight_moves(board, square_start):
                 # Draw a green circle on free squares
                 pygame.draw.circle(alpha_surf, (25,150,25,150), (50,50), 20)
             screen.blit(alpha_surf, pos)
+    
+    # Mark the current selection
+    pos = [(ord(square_start[0])-96)*100-50, (9-int(square_start[1]))*100-50]   # ord(char) = ascii code of char 
+    # Create a surface with alpha channel for colors
+    alpha_surf = pygame.Surface((100,100), pygame.SRCALPHA)
+    # Fill the target sqaure green
+    alpha_surf.fill((25,150,25,150))
+    screen.blit(alpha_surf, pos)
+    draw_pieces(board.__str__())
     pygame.display.flip()
 
 
