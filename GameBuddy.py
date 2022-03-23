@@ -10,34 +10,47 @@ import random
 import pygame
 import chess.engine
 from sys import exit
+import numpy as np
+from chess.engine import Cp, Mate, MateGiven
 
 ############ Settings ############
 
-player_white = "good_moves"
-player_black = "good_moves"
-n_best_moves = 1
-search_depth = 1
-stock_depth = 4
+# Choose player between
+#   human 
+#   AI1 - Stockfish with custom tree search
+#   stockfish - default stockfish
+#   random - random legal moves
+player_white = "human"
+player_black = "AI1"
+
+# number of evaluated moves per search layer 
+n_best_moves = 4
+
+# search depth in the custom tree
+search_depth = 6
+
+# search depth of the stockfish player
+stock_depth = 10
+
 
 ############ Setting up variables #############
 
 col_names = ["a","b","c","d","e","f","g","h"]
 row_names = ["1","2","3","4","5","6","7","8"]  
 end_result_str = ['#-0', '#+0'] # Game end states
-promo_names = ["q","r","n","b"] # Possible pieces for promotion
-special_moves = {"forfeit":["gg", "ggwp"]}  # Dictionary of special moves: key = outcome, value = list of possible inputs
 status = 0  # possible game states: 0 = game is ongoing, 1 = regular game over, 2 = error occured
 
 
 ########### Setting up pygame #############
 
 pygame.init()
-size = width, height = 900, 900
+size = width, height = 900, 940
 black = 70, 70, 70
 screen = pygame.display.set_mode(size)
 screen.fill(black)
 pygame.font.init()
 myfont = pygame.font.SysFont('Arial', 34)
+ratingfont = pygame.font.SysFont('Arial', 22)
 engine = chess.engine.SimpleEngine.popen_uci("stockfish_14.1_linux_x64/stockfish_14.1_linux_x64")
 
 
@@ -61,6 +74,62 @@ pieces["r"] = pygame.image.load("pieces/Chess_rdt60.png")
 
 ########### Functions ###############
 
+def get_piece(board_string, move):
+    board_list = board_string.split("\n")
+    board_list = [bl.split() for bl in board_list]
+    return board_list[7-(int(move[1])-1)][(ord(move[0])-97)]
+
+def get_index(piece):
+    #print(piece)
+    if piece == "P":
+        return 0
+    if piece == "p":
+        return 1
+    if piece == "R":
+        return 2
+    if piece == "r":
+        return 3
+    if piece == "B":
+        return 4
+    if piece == "b":
+        return 5
+    if piece == "N":
+        return 6
+    if piece == "n":
+        return 7
+    if piece == "Q":
+        return 8
+    if piece == "q":
+        return 9
+    if piece == "K":
+        return 10
+    if piece == "k":
+        return 11
+
+
+def to_input_layer(board):
+    
+    numpieces12 = [0]*12
+    nummotility12 = [0]*12
+    numattack144 = [0]*144
+    for i, piece in enumerate(board.__str__().replace(" ", "").replace("\n", "")):
+        if piece == ".":
+            continue
+        numpieces12[get_index(piece)] +=1
+            
+    for move in board.legal_moves:
+        start_piece = get_piece(board.__str__(), move.__str__()[0:2])
+        target_piece = get_piece(board.__str__(), move.__str__()[2:4])
+        start_index = get_index(start_piece)
+        nummotility12[start_index] += 1
+        
+        if target_piece == ".":
+            continue
+        else:
+            numattack144[start_index*12 + get_index(target_piece)] += 1
+
+    return numpieces12 + nummotility12 + numattack144
+
 def get_square(position):
     """Get the chess board square from the mouse coordinates"""
     x = position[0]
@@ -82,8 +151,8 @@ def make_move(board):
         return make_player_move(board)
     elif player == "random":
         return make_random_move(board)
-    elif player == "good_moves":
-        return make_good_move(board, 0)
+    elif player == "AI1":
+        return make_AI1_move(board, 0)
     elif player == "stockfish":
         return make_stockfish_move(board, stock_depth)
     else:
@@ -102,6 +171,21 @@ def get_board_rating(board):
     """Rate the current board state using the loaded chess engine. Score given from white players perspective."""
     info = engine.analyse(board, chess.engine.Limit(depth=0))
     return info["score"].white()
+
+def get_board_ratingHE(board):
+    """Rate the current board state using the loaded chess engine. Score given from white players perspective."""
+    info = engine.analyse(board, chess.engine.Limit(depth=12))
+    return info["score"].white()
+
+def get_board_rating_AI(board):
+    """Rate the current board state using MAGIC. Score given from white players perspective."""
+    info = engine.analyse(board, chess.engine.Limit(depth=0))
+    if info["score"].white() is None:
+        return info["score"].white()
+    else:
+        input_vector = np.asarray(to_input_layer(board))
+        weights = np.asarray((1,-1,5,-5,3,-3,3,-3,9,-9,9999,-9999))
+        return Cp(np.sum(input_vector[0:12]*weights))
 
 
 def has_potential(cp_best, cp_test):
@@ -142,7 +226,7 @@ def make_stockfish_move(board, depth_stock):
     return 0 
 
 
-def make_good_move(board, current_depth):
+def make_AI1_move(board, current_depth):
     """Make a move using our custom tree search with depth 0 Stockfish evaluation of the nodes."""
     potential_moves = get_best_moves(board)
 
@@ -151,7 +235,7 @@ def make_good_move(board, current_depth):
         for move in potential_moves:
             if not (potential_moves[move].__str__() in end_result_str): 
                 board.push_san(move)
-                potential_moves[move] = make_good_move(board, current_depth+1)
+                potential_moves[move] = make_AI1_move(board, current_depth+1)
                 board.pop()
     
     best_move = sorted(potential_moves.items(), key=lambda x:x[1], reverse=board.turn)[0]
@@ -219,8 +303,6 @@ def get_input(board):
 def make_player_move(board):
     """Get the players move input and check whether it is a valid move."""
     player_move = get_input(board)
-    if player_move in special_moves["forfeit"]:
-        return 1
     if chess.Move.from_uci(player_move) in board.legal_moves:
         board.push_san(player_move)
         return 0
@@ -241,10 +323,12 @@ def draw_pieces(board_string):
         for j, piece in enumerate(bl):
             if not piece==".":
                 screen.blit(pieces[piece], [50+20+100*j, 50+20+100*i])
+    
 
 
 def draw_board(board):
     """Draw the chess board + Pieces"""
+    screen.fill(black)
     surf_w = pygame.Surface((100,100))
     surf_w.fill((225,225,225))
     surf_b = pygame.Surface((800,800))
@@ -260,7 +344,10 @@ def draw_board(board):
         textsurface = myfont.render(row_names[-i-1], False, (255, 255, 255))
         screen.blit(textsurface, (15, 50+33 + i * 100))
         screen.blit(textsurface, (850+15, 50+33 + i * 100))
-
+    sco = get_board_ratingHE(board).__str__()
+    screen.blit(ratingfont.render('Board rating: '+ sco, False, (255, 255, 255)), (650, 900+15))
+    screen.blit(ratingfont.render("White move" if board.turn else "Black move", False, (255, 255, 255)), (50+38, 900+15))
+    
     draw_pieces(board.__str__())
     # Update the screen
     pygame.display.flip()
@@ -318,13 +405,24 @@ while not (board.is_game_over() or status):
 
     
 ############### Handle game outcome #############
+surf_fin = pygame.Surface((900,40))
+surf_fin.fill(black)
+    
 
 if board.is_stalemate() or board.is_insufficient_material():
+    screen.blit(surf_fin, [0,900])
+    screen.blit(ratingfont.render("Draw!", False, (255, 255, 255)), (420, 900+15))
+    pygame.display.flip()
     print("Draw!")
 elif board.is_checkmate() or status == 1:
+    screen.blit(surf_fin, [0,900])
     if (board.turn == chess.BLACK):
+        screen.blit(ratingfont.render("WHITE won!", False, (255, 255, 255)), (400, 900+15))
+        pygame.display.flip()
         print("WHITE won!")
     else:
+        screen.blit(ratingfont.render("BLACK won!", False, (255, 255, 255)), (400, 900+15))
+        pygame.display.flip()
         print("BLACK won!")
 elif status == 2:
     print("An error occured. Game stopped.")
@@ -335,3 +433,4 @@ while True:
             engine.quit()
             pygame.quit()
             exit()
+
